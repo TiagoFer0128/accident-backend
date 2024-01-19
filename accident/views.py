@@ -98,7 +98,7 @@ def get_file_analysis(request):
 
     # print(file.read())
 
-    openai.api_key = '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'
+    openai.api_key = ''
     global GLOBAL_VAR_CLIENT 
     global GLOBAL_VAR_ASSISTANT
     global GLOBAL_VAR_THREAD
