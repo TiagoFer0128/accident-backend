@@ -10,6 +10,7 @@ GLOBAL_VAR_CLIENT = ""
 GLOBAL_VAR_ASSISTANT = ""
 GLOBAL_VAR_THREAD = ""
 
+
 def format_for_gpt4(run_steps):
     formatted_output = ""
     for step in run_steps.data:
@@ -94,20 +95,29 @@ def hello_world(request):
 
 @api_view(['POST'])
 def get_file_analysis(request):
-    file = request.FILES.get("file")
+    files = []
+    for f in request.FILES.getlist('file'):
+        files.append(f)
+    print(files)
 
     # print(file.read())
 
     openai.api_key = ''
-    global GLOBAL_VAR_CLIENT 
+    global GLOBAL_VAR_CLIENT
     global GLOBAL_VAR_ASSISTANT
     global GLOBAL_VAR_THREAD
 
     GLOBAL_VAR_CLIENT = openai.OpenAI(api_key=openai.api_key)
 
     model = "gpt-4-1106-preview"
+    dataset_files = []
+    dataset_file_ids = []
 
-    dataset_file = GLOBAL_VAR_CLIENT.files.create(file=file.read(), purpose='assistants')
+    for file in files:
+        dataset_files.append(GLOBAL_VAR_CLIENT.files.create(
+            file=file.read(), purpose='assistants'))
+    for dataset_file in dataset_files:
+        dataset_file_ids.append(dataset_file.id)
 
     try:
         GLOBAL_VAR_ASSISTANT = GLOBAL_VAR_CLIENT.beta.assistants.create(
@@ -115,7 +125,7 @@ def get_file_analysis(request):
             # model="gpt-4-1106-preview",
             model="gpt-3.5-turbo-1106",
             tools=[{"type": "code_interpreter"}],
-            file_ids=[dataset_file.id]
+            file_ids=dataset_file_ids,
         )
     except Exception as e:
         print(f"An error occurred while creating the Assistant: {e}")
@@ -172,7 +182,11 @@ def get_file_analysis(request):
 
 @api_view(['POST'])
 def get_answer(request):
-    messages = [{"role": "system", "content": "You are an auto insurance claim specialist with knowledge of analysing auto claims and car crashes. You can suggest the exact & perfect answer as possible as you can for the custom questions. The answer can be short but not too short if the information is mandatory."}]
+    messages = [{"role": "system", "content": """You are an auto insurance claim specialist with knowledge of analysing auto claims and car crashes. Follow the below rules.
+    RULES:
+    You can suggest the exact & perfect answer as possible as you can for the custom questions.
+    The answer can be short but not too short if the information is mandatory.
+    """}]
     user_input = request.data.get("question")
 
     model = "gpt-3.5-turbo-1106"
@@ -189,9 +203,11 @@ def get_answer(request):
         # Use GPT-4 to analyze the output of Code Interpreter
         gpt_prompt = construct_gpt_prompt(code_interpreter_output, user_input)
         messages.append({"role": "user", "content": gpt_prompt})
+        gpt_response = query_gpt4(GLOBAL_VAR_CLIENT, model, messages)
     else:
         # Directly ask GPT-4 the user's question
         messages.append({"role": "user", "content": user_input})
+        gpt_response = "Sorry.There are not matched information in the files you uploaded. Please try to ask any other questions"
+        messages.append({"role": "system", "content": gpt_response})
 
-    gpt_response = query_gpt4(GLOBAL_VAR_CLIENT, model, messages)
     return Response({'message': gpt_response})
